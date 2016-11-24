@@ -6,6 +6,7 @@
  *  when the screen does not need to be redrawn the CPU
  *  is turned off along with the green LED.
  */  
+
 #include <msp430.h>
 #include <libTimer.h>
 #include <lcdutils.h>
@@ -18,6 +19,7 @@
 
 
 AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle */
+
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
 AbRectOutline fieldOutline = {	/* playing field */
@@ -51,6 +53,7 @@ Layer fieldLayer = {		/* playing field as a layer */
   &layer3
 };
 
+
 Layer layer1 = {		/**< Layer with a red square */
   (AbShape *)&rect10,
   {screenWidth/2, screenHeight/2}, /**< center */
@@ -78,21 +81,23 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 /* initial value of {0,0} will be overwritten */
-MovLayer ml3 = { &layer3, {1,1}, 0 }; /**< not all layers move */
+MovLayer ml3 = { &layer3, {3,3}, 0 }; /**< not all layers move */
 MovLayer ml1 = { &layer1, {1,2}, &ml3 }; 
 MovLayer ml0 = { &layer0, {2,1}, &ml1 }; 
-
-
-
-
 
 
 
 movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
   int row, col;
-  MovLayer *movLayer;
+  MovLayer *movLayer; //dummy (you never work with the original first of the linked list)
 
+  /*
+    Reynaldo: This loop seems to update the position of the shape. It turns off the GIE to
+    to not allow interrupts to happen during this process. It immediately turns the GIE on
+    again when this the positions have been updated.
+
+   */
   and_sr(~8);			/**< disable interrupts (GIE off) */
   for (movLayer = movLayers; movLayer; movLayer = movLayer->next) { /* for each moving layer */
     Layer *l = movLayer->layer;
@@ -101,6 +106,9 @@ movLayerDraw(MovLayer *movLayers, Layer *layers)
   }
   or_sr(8);			/**< disable interrupts (GIE on) */
 
+  /*
+    Reynaldo: This loop its really difficult to understand
+   */
 
   for (movLayer = movLayers; movLayer; movLayer = movLayer->next) { /* for each moving layer */
     Region bounds;
@@ -139,17 +147,32 @@ void mlAdvance(MovLayer *ml, Region *fence)
   Vec2 newPos;
   u_char axis;
   Region shapeBoundary;
-  for (; ml; ml = ml->next) {
-    vec2Add(&newPos, &ml->layer->posNext, &ml->velocity);
-    abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary);
+  for (; ml; ml = ml->next) { // For each moving layer 
+    vec2Add(&newPos, &ml->layer->posNext, &ml->velocity); // Gets new position (adds position vec to vel vec)
+    abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary); // Uses new position to set new boundaries
     for (axis = 0; axis < 2; axis ++) {
+
+      /*
+	Reynaldo: If new shape boudaries hits fence boudaries, change direction of
+	the velocity (a.k.a. change sign).
+
+	shapeBoundary <- new region (boundary) of the shape. Uses top left and bottom right points
+	
+	Which makes sense:
+                                X....
+			        .....
+				....X
+
+	top-left covers top and left bounds and bottom-right covers bottom and right bounds.
+       */
+      
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
 	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) {
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
-	newPos.axes[axis] += (2*velocity);
+	newPos.axes[axis] += (1*velocity); // Wall bounce! why was this set up to 2*velocity?
       }	/**< if outside of fence */
     } /**< for axis */
-    ml->layer->posNext = newPos;
+    ml->layer->posNext = newPos; // <------------------------------------ HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
   } /**< for ml */
 }
 
@@ -197,6 +220,7 @@ void main()
   }
 }
 
+
 /** Watchdog timer interrupt handler. 15 interrupts/sec */
 void wdt_c_handler()
 {
@@ -208,6 +232,6 @@ void wdt_c_handler()
     if (p2sw_read())
       redrawScreen = 1;
     count = 0;
-  }
+  } 
   P1OUT &= ~GREEN_LED;		    /**< Green LED off when cpu off */
 }

@@ -42,7 +42,7 @@ Layer layer0 = {
 
     
 
-u_int bgColor = COLOR_BLUE;
+u_int bgColor = COLOR_WHITE;
 
 main()
 {
@@ -51,9 +51,35 @@ main()
   shapeInit();
   Vec2 rectPos = screenCenter, circlePos = {30,screenHeight - 30};
 
-  clearScreen(COLOR_BLUE);
+  /*
+    While loop that shows how to change the background rapidly 
+    between colors. layerDraw uses bgColor's targeted color
+    for the background
+   */
+  /* int i = 0; */
+  /* while(i++ < 10){ */
+  /*   clearScreen(COLOR_BLUE); */
+  /*   clearScreen(COLOR_RED); */
+  /*   clearScreen(COLOR_GREEN); */
+  /* } */
+ 
   drawString5x7(20,20, "hello", COLOR_GREEN, COLOR_RED);
-  shapeInit();
+  //shapeInit();
+
+  /*
+    While loop that shows how bgColor sets the background
+    for the layerDraw function
+   */
+  int i = 0;
+  while(i++ < 10){
+    bgColor = COLOR_WHITE;
+    layerDraw(&layer0);
+    bgColor = COLOR_BLACK;
+    layerDraw(&layer0);
+    bgColor = COLOR_GREEN;
+    layerDraw(&layer0);
+  }
+   
   
   layerDraw(&layer0);
   
