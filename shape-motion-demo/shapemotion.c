@@ -14,11 +14,14 @@
 #include <p2switches.h>
 #include <shape.h>
 #include <abCircle.h>
+#include "music.h"
+#include "buzzer.h"
+
 
 #define GREEN_LED BIT6
 
 
-AbRect rect10 = {abRectGetBounds, abRectCheck, {10,10}}; /**< 10x10 rectangle */
+AbRect rect10 = {abRectGetBounds, abRectCheck, {3,15}}; /**< 10x10 rectangle */
 
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
@@ -37,10 +40,10 @@ Layer layer4 = {
   
 
 Layer layer3 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle8,
+  (AbShape *)&circle4,
   {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_VIOLET,
+  COLOR_RED,
   &layer4,
 };
 
@@ -56,17 +59,17 @@ Layer fieldLayer = {		/* playing field as a layer */
 
 Layer layer1 = {		/**< Layer with a red square */
   (AbShape *)&rect10,
-  {screenWidth/2, screenHeight/2}, /**< center */
+  {115, 130}, /**< center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_RED,
+  COLOR_BLACK,
   &fieldLayer,
 };
 
 Layer layer0 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle14,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
+  (AbShape *)&rect10,
+  {15, 30}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_ORANGE,
+  COLOR_BLACK,
   &layer1,
 };
 
@@ -82,8 +85,8 @@ typedef struct MovLayer_s {
 
 /* initial value of {0,0} will be overwritten */
 MovLayer ml3 = { &layer3, {3,3}, 0 }; /**< not all layers move */
-MovLayer ml1 = { &layer1, {1,2}, &ml3 }; 
-MovLayer ml0 = { &layer0, {2,1}, &ml1 }; 
+MovLayer ml1 = { &layer1, {0,3}, &ml3 }; 
+MovLayer ml0 = { &layer0, {0,3}, &ml1 }; 
 
 
 
@@ -193,6 +196,7 @@ void main()
 
   configureClocks();
   lcd_init();
+  buzzer_init(); //added buzzer_init() to program
   shapeInit();
   p2sw_init(1);
 
@@ -213,6 +217,7 @@ void main()
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
       P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
       or_sr(0x10);	      /**< CPU OFF */
+
     }
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
@@ -228,10 +233,19 @@ void wdt_c_handler()
   P1OUT |= GREEN_LED;		      /**< Green LED on when cpu on */
   count ++;
   if (count == 15) {
+    //playlist(4);
     mlAdvance(&ml0, &fieldFence);
     if (p2sw_read())
       redrawScreen = 1;
     count = 0;
   } 
   P1OUT &= ~GREEN_LED;		    /**< Green LED off when cpu off */
+}
+
+__interrupt(WDT_VECTOR) WDT(){
+  static char count = 0;
+  if(++count == 250){
+    playlist(4);
+    count = 0;
+  }
 }
