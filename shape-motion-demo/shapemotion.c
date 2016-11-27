@@ -21,7 +21,7 @@ AbRect paddle = {abRectGetBounds, abRectCheck, {3,15}};   /**< 3x15 paddles*/
 
 AbRectOutline fieldOutline = {	                      /* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
-  {screenWidth/2 - 5, screenHeight/2 - 5}
+  {screenWidth/2 - 15, screenHeight/2 - 15}
 };
 
 /* playing field as a layer */
@@ -71,7 +71,7 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 MovLayer mlball = { &layer2, {3,3}, 0};
-MovLayer ml1 = { &layer1, {0,-3}, 0};  /**< not all layers move */
+MovLayer ml1 = { &layer1, {0,3}, 0};  /**< not all layers move */
 MovLayer ml0 = { &layer0, {0,3}, 0}; 
 
 
@@ -141,12 +141,11 @@ void mlAdvance(MovLayer *ml, Region *fence)
 
 	shapeBoundary <- new region (boundary) of the shape. Uses top left and bottom right points
       */
-      
+   
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
 	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) {
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
 	newPos.axes[axis] += (1*velocity); // Wall bounce! why was this set up to 2*velocity?
-       
       }	/**< if outside of fence */
       ml->layer->posNext = newPos; // <---- HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
   } /**< for ml */ 
@@ -176,23 +175,16 @@ void main()
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
+  drawString5x7(1,5, "P1:0", COLOR_BLACK, COLOR_GREEN);
+  drawString5x7(104,5, "P2:0", COLOR_BLACK, COLOR_GREEN);
+  drawString5x7(50,5, "Score", COLOR_BLACK, COLOR_GREEN);
   
-  drawString5x7(10, 10, "switch:", COLOR_GREEN, COLOR_BLUE);
-
-  for(;;) {
-    /* u_int switches = p2sw_read(), i; */
-    /* char str[5]; */
-    /* for (i = 0; i < 4; i++) */
-    /*   str[i] = (switches & (1<<i)) ? '-' : '0'+i; */
-    /* str[4] = 0; */
-    //drawString5x7(20,20, str, COLOR_GREEN, COLOR_BLUE);
-    
+  for(;;) {    
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
       P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
       //or_sr(0x10);	      /**< CPU OFF */
       
     }
-    
     
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
@@ -211,14 +203,15 @@ void wdt_c_handler()
 
   // PASS SOUND TO A FUNTION THAT PLAYS A SONG
   // DEPENDING ON SOUND'S VALUE
-  /* sound ++; */
+  sound ++; 
 
+  //song(sound);
   /* if(sound < 100) */
   /*   buzzer_set_note(D1); */
   /* if(sound >= 100) */
   /*   buzzer_set_note(A1); */
-  /* if(sound > 200) */
-  /*   sound = 0; */
+  if(sound > 225) 
+    sound = 0; 
   
   if (count == 15) {
     movLayerDraw(&mlball,&layer2);
@@ -233,31 +226,32 @@ void wdt_c_handler()
       else{
 	str[i] = '0'+i;
 	if(i == 0){
+	  ml0.velocity.axes[1] = -4;
 	  movLayerDraw(&ml0,&layer0);
 	  mlAdvance(&ml0, &fieldFence);
 	  redrawScreen = 1;
 	}
 	if(i == 1){
+	  ml0.velocity.axes[1] = 4;
 	  movLayerDraw(&ml0,&layer0);
 	  mlAdvance(&ml0, &fieldFence);
 	  redrawScreen = 1;
 	}
 	if(i == 2){
+	  ml1.velocity.axes[1] = -4;
 	  movLayerDraw(&ml1,&layer1);
 	  mlAdvance(&ml1, &fieldFence);
 	  redrawScreen = 1;
 	}
 	if(i == 3){
+	  ml1.velocity.axes[1] = 4;
 	  movLayerDraw(&ml1,&layer1);
 	  mlAdvance(&ml1, &fieldFence);
 	  redrawScreen = 1;
 	}
       }
     }
-    
     str[4] = 0;
-    drawString5x7(20,20, str, COLOR_GREEN, COLOR_BLUE); 
-  
     count = 0;
   } 
   P1OUT &= ~GREEN_LED;		    /**< Green LED off when cpu off */

@@ -1,6 +1,7 @@
 #ifndef music_included
 #define  music_included
 
+void song(short sound);
 void play(long note, long tempo);
 void playlist(char song);
 void play_c_scale();
@@ -8,15 +9,15 @@ void play_kh_theme();
 void play_ff_fanfare();
 void play_ff_chocobo();
 
-#define WHOLE_NOTE 0X222e00          /* time spent playing one note */
-#define HALFDOT_NOTE 0x19a280
-#define HALF_NOTE 0X111700
-#define QUARTERDOT_NOTE 0Xcd140 
-#define QUARTER_NOTE 0x88b80
-#define EIGHTHDOT_NOTE 0x668a0
-#define EIGHTH_NOTE 0x445c0
-#define SIXTEENTH_NOTE 0x222e0
-#define THIRTY_SECOND_NOTE 0x11170
+#define QUARTER_NOTE 100
+#define WHOLE_NOTE (QUARTER_NOTE*4)          /* time spent playing one note */
+#define HALFDOT_NOTE (QUARTER_NOTE*5)/2
+#define HALF_NOTE (QUARTER_NOTE*2)
+#define QUARTERDOT_NOTE ((QUARTER_NOTE*3)/2) 
+#define EIGHTHDOT_NOTE ((QUARTER_NOTE*3)/4)
+#define EIGHTH_NOTE (QUARTER_NOTE/2)
+#define SIXTEENTH_NOTE (QUARTER_NOTE/4)
+#define THIRTY_SECOND_NOTE (QUARTER_NOTE/8)
 
 #define WHOLE_REST 0X222e00          /* time spent in rest */
 #define HALFDOT_REST 0x19a280
