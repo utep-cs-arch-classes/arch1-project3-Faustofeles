@@ -1,11 +1,3 @@
-/** \file shapemotion.c
- *  \brief This is a simple shape motion demo.
- *  This demo creates two layers containing shapes.
- *  One layer contains a rectangle and the other a circle.
- *  While the CPU is running the green LED is on, and
- *  when the screen does not need to be redrawn the CPU
- *  is turned off along with the green LED.
- */  
 
 #include <msp430.h>
 #include <libTimer.h>
@@ -17,90 +9,87 @@
 #include "music.h"
 #include "buzzer.h"
 
-
 #define GREEN_LED BIT6
 
-
-AbRect rect10 = {abRectGetBounds, abRectCheck, {3,15}}; /**< 10x10 rectangle */
+AbRect paddle = {abRectGetBounds, abRectCheck, {3,15}};   /**< 3x15 paddles*/
 
 AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
 
-AbRectOutline fieldOutline = {	/* playing field */
+AbRectOutline fieldOutline = {	                      /* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
-  {screenWidth/2 - 10, screenHeight/2 - 10}
+  {screenWidth/2 - 5, screenHeight/2 - 5}
 };
 
-Layer layer4 = {
-  (AbShape *)&rightArrow,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
-  {0,0}, {0,0},				    /* last & next pos */
-  COLOR_PINK,
-  0
-};
-  
+/* playing field as a layer */
 
-Layer layer3 = {		/**< Layer with an orange circle */
-  (AbShape *)&circle4,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
-  {0,0}, {0,0},				    /* last & next pos */
-  COLOR_RED,
-  &layer4,
-};
-
-
-Layer fieldLayer = {		/* playing field as a layer */
+Layer fieldLayer = {		
   (AbShape *) &fieldOutline,
   {screenWidth/2, screenHeight/2},/**< center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_BLACK,
-  &layer3
+  0,
 };
 
+/* Ball moving */
 
-Layer layer1 = {		/**< Layer with a red square */
-  (AbShape *)&rect10,
-  {115, 130}, /**< center */
+Layer layer2 = {		
+  (AbShape *)&circle4,
+  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_BLACK,
+  COLOR_PURPLE,
   &fieldLayer,
 };
 
-Layer layer0 = {		/**< Layer with an orange circle */
-  (AbShape *)&rect10,
-  {15, 30}, /**< bit below & right of center */
+/* paddle player 2 */
+
+Layer layer1 = {	       
+  (AbShape *)&paddle,
+  {118, (screenHeight)/2}, /**< center */
+  {0,0}, {0,0},				    /* last & next pos */
+  COLOR_BLACK,
+  &layer2,
+};
+
+/* paddle player 1 */
+
+Layer layer0 = {		
+  (AbShape *)&paddle,
+  {10, (screenHeight)/2}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_BLACK,
   &layer1,
 };
 
+
+
 /** Moving Layer
  *  Linked list of layer references
  *  Velocity represents one iteration of change (direction & magnitude)
  */
+
 typedef struct MovLayer_s {
   Layer *layer;
   Vec2 velocity;
   struct MovLayer_s *next;
 } MovLayer;
 
-/* initial value of {0,0} will be overwritten */
-MovLayer ml3 = { &layer3, {3,3}, 0 }; /**< not all layers move */
-MovLayer ml1 = { &layer1, {0,3}, &ml3 }; 
-MovLayer ml0 = { &layer0, {0,3}, &ml1 }; 
+MovLayer mlball = { &layer2, {3,3}, 0};
 
+/* initial value of {0,0} will be overwritten */
+
+MovLayer ml1 = { &layer1, {0,-3}, 0};  /**< not all layers move */
+MovLayer ml0 = { &layer0, {0,3}, 0}; 
 
 
 movLayerDraw(MovLayer *movLayers, Layer *layers)
 {
   int row, col;
-  MovLayer *movLayer; //dummy (you never work with the original first of the linked list)
-
+  MovLayer *movLayer; // This is a dummy to first in LL
+  
   /*
-    Reynaldo: This loop seems to update the position of the shape. It turns off the GIE to
-    to not allow interrupts to happen during this process. It immediately turns the GIE on
-    again when this the positions have been updated.
-
-   */
+    Reynaldo: This loop updates the position of the shape.
+  */
+  
   and_sr(~8);			/**< disable interrupts (GIE off) */
   for (movLayer = movLayers; movLayer; movLayer = movLayer->next) { /* for each moving layer */
     Layer *l = movLayer->layer;
@@ -110,7 +99,7 @@ movLayerDraw(MovLayer *movLayers, Layer *layers)
   or_sr(8);			/**< disable interrupts (GIE on) */
 
   /*
-    Reynaldo: This loop its really difficult to understand
+    Reynaldo: SETS AREA BOUNDARY TO DRAW
    */
 
   for (movLayer = movLayers; movLayer; movLayer = movLayer->next) { /* for each moving layer */
@@ -137,9 +126,6 @@ movLayerDraw(MovLayer *movLayers, Layer *layers)
 }	  
 
 
-
-//Region fence = {{10,30}, {SHORT_EDGE_PIXELS-10, LONG_EDGE_PIXELS-10}}; /**< Create a fence region */
-
 /** Advances a moving shape within a fence
  *  
  *  \param ml The moving shape to be advanced
@@ -150,8 +136,8 @@ void mlAdvance(MovLayer *ml, Region *fence)
   Vec2 newPos;
   u_char axis;
   Region shapeBoundary;
-  for (; ml; ml = ml->next) { // For each moving layer 
-    vec2Add(&newPos, &ml->layer->posNext, &ml->velocity); // Gets new position (adds position vec to vel vec)
+
+  vec2Add(&newPos, &ml->layer->posNext, &ml->velocity); // Gets new position (adds position vec to vel vec)
     abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary); // Uses new position to set new boundaries
     for (axis = 0; axis < 2; axis ++) {
 
@@ -160,27 +146,21 @@ void mlAdvance(MovLayer *ml, Region *fence)
 	the velocity (a.k.a. change sign).
 
 	shapeBoundary <- new region (boundary) of the shape. Uses top left and bottom right points
-	
-	Which makes sense:
-                                X....
-			        .....
-				....X
-
-	top-left covers top and left bounds and bottom-right covers bottom and right bounds.
-       */
+      */
       
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
 	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) {
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
 	newPos.axes[axis] += (1*velocity); // Wall bounce! why was this set up to 2*velocity?
+       
       }	/**< if outside of fence */
-    } /**< for axis */
-    ml->layer->posNext = newPos; // <------------------------------------ HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
-  } /**< for ml */
+      ml->layer->posNext = newPos; // <---- HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
+  } /**< for ml */ 
 }
 
 
-u_int bgColor = COLOR_BLUE;     /**< The background color */
+u_int bgColor = COLOR_GREEN;     /**< The background color */
+
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
 
 Region fieldFence;		/**< fence around playing field  */
@@ -196,32 +176,30 @@ void main()
 
   configureClocks();
   lcd_init();
-  buzzer_init(); //added buzzer_init() to program
   shapeInit();
   p2sw_init(1);
-
   shapeInit();
+
+  buzzer_init(); //added buzzer_init() to program
 
   layerInit(&layer0);
   layerDraw(&layer0);
-
-
   layerGetBounds(&fieldLayer, &fieldFence);
-
 
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
-
-  for(;;) { 
+  for(;;) {  
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
       P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
-      or_sr(0x10);	      /**< CPU OFF */
-
+      //or_sr(0x10);	      /**< CPU OFF */
+      
     }
+    
+    
     P1OUT |= GREEN_LED;       /**< Green led on when CPU on */
     redrawScreen = 0;
-    movLayerDraw(&ml0, &layer0);
+    //movLayerDraw(&ml0, &layer0); 
   }
 }
 
@@ -230,22 +208,34 @@ void main()
 void wdt_c_handler()
 {
   static short count = 0;
+  static short sound = 0;
   P1OUT |= GREEN_LED;		      /**< Green LED on when cpu on */
   count ++;
+
+  // PASS SOUND TO A FUNTION THAT PLAYS A SONG
+  // DEPENDING ON SOUND'S VALUE
+  /* sound ++; */
+
+  /* if(sound < 100) */
+  /*   buzzer_set_note(D1); */
+  /* if(sound >= 100) */
+  /*   buzzer_set_note(A1); */
+  /* if(sound > 200) */
+  /*   sound = 0; */
+  
   if (count == 15) {
-    //playlist(4);
-    mlAdvance(&ml0, &fieldFence);
-    if (p2sw_read())
-      redrawScreen = 1;
+    movLayerDraw(&mlball,&layer2);
+    mlAdvance(&mlball, &fieldFence);
+
+    if (!p2sw_read()) {           /**< IF S1 IS PRESSED */
+      //playlist(4);
+      movLayerDraw(&ml0, &layer0);
+      mlAdvance(&ml0, &fieldFence); // MOVE PADDLE 1
+      redrawScreen = 1;             //REDRAW ENABLE
+      //buzzer_set_note(0);
+    }
+
     count = 0;
   } 
   P1OUT &= ~GREEN_LED;		    /**< Green LED off when cpu off */
-}
-
-__interrupt(WDT_VECTOR) WDT(){
-  static char count = 0;
-  if(++count == 250){
-    playlist(4);
-    count = 0;
-  }
 }

@@ -7,7 +7,7 @@
 	.text
 	
 
-	.extern redrawScreen
+	.extern redrawScreen	
 	.extern wdt_c_handler
 WDT:
 ; start of function
