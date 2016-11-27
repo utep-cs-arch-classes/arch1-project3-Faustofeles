@@ -1,6 +1,6 @@
 # makfile configuration
 CPU             	= msp430g2553
-CFLAGS          	= -mmcu=${CPU} -Os -I../h -I../h
+CFLAGS          	= -mmcu=${CPU} -Os -I../h -I../h -I../p2swLib
 
 #switch the compiler (for the internal make rules)
 CC              = msp430-elf-gcc

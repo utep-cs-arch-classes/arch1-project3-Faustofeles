@@ -1,19 +1,23 @@
-
 #include <msp430.h>
 #include <libTimer.h>
 #include <lcdutils.h>
 #include <lcddraw.h>
-#include <p2switches.h>
 #include <shape.h>
 #include <abCircle.h>
 #include "music.h"
 #include "buzzer.h"
+#include "p2switches.h"
 
 #define GREEN_LED BIT6
 
-AbRect paddle = {abRectGetBounds, abRectCheck, {3,15}};   /**< 3x15 paddles*/
+void mlAdvance();
+void movLayerDraw();
 
-AbRArrow rightArrow = {abRArrowGetBounds, abRArrowCheck, 30};
+u_int bgColor = COLOR_GREEN;     /**< The background color */
+int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
+Region fieldFence;		/**< fence around playing field  */
+
+AbRect paddle = {abRectGetBounds, abRectCheck, {3,15}};   /**< 3x15 paddles*/
 
 AbRectOutline fieldOutline = {	                      /* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
@@ -60,13 +64,6 @@ Layer layer0 = {
   &layer1,
 };
 
-
-
-/** Moving Layer
- *  Linked list of layer references
- *  Velocity represents one iteration of change (direction & magnitude)
- */
-
 typedef struct MovLayer_s {
   Layer *layer;
   Vec2 velocity;
@@ -74,9 +71,6 @@ typedef struct MovLayer_s {
 } MovLayer;
 
 MovLayer mlball = { &layer2, {3,3}, 0};
-
-/* initial value of {0,0} will be overwritten */
-
 MovLayer ml1 = { &layer1, {0,-3}, 0};  /**< not all layers move */
 MovLayer ml0 = { &layer0, {0,3}, 0}; 
 
@@ -159,13 +153,6 @@ void mlAdvance(MovLayer *ml, Region *fence)
 }
 
 
-u_int bgColor = COLOR_GREEN;     /**< The background color */
-
-int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
-
-Region fieldFence;		/**< fence around playing field  */
-
-
 /** Initializes everything, enables interrupts and green LED, 
  *  and handles the rendering for the screen
  */
@@ -177,7 +164,7 @@ void main()
   configureClocks();
   lcd_init();
   shapeInit();
-  p2sw_init(1);
+  p2sw_init(15);
   shapeInit();
 
   buzzer_init(); //added buzzer_init() to program
@@ -189,7 +176,17 @@ void main()
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
-  for(;;) {  
+  
+  drawString5x7(10, 10, "switch:", COLOR_GREEN, COLOR_BLUE);
+
+  for(;;) {
+    /* u_int switches = p2sw_read(), i; */
+    /* char str[5]; */
+    /* for (i = 0; i < 4; i++) */
+    /*   str[i] = (switches & (1<<i)) ? '-' : '0'+i; */
+    /* str[4] = 0; */
+    //drawString5x7(20,20, str, COLOR_GREEN, COLOR_BLUE);
+    
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
       P1OUT &= ~GREEN_LED;    /**< Green led off witHo CPU */
       //or_sr(0x10);	      /**< CPU OFF */
@@ -227,15 +224,42 @@ void wdt_c_handler()
     movLayerDraw(&mlball,&layer2);
     mlAdvance(&mlball, &fieldFence);
 
-    if (!p2sw_read()) {           /**< IF S1 IS PRESSED */
-      //playlist(4);
-      movLayerDraw(&ml0, &layer0);
-      mlAdvance(&ml0, &fieldFence); // MOVE PADDLE 1
-      redrawScreen = 1;             //REDRAW ENABLE
-      //buzzer_set_note(0);
+    // SWITCHES //
+    u_int switches = p2sw_read(), i;
+    char str[5];
+    for (i = 0; i < 4; i++){
+      if(switches & (1<<i))	
+	str[i] = '-';
+      else{
+	str[i] = '0'+i;
+	if(i == 0){
+	  movLayerDraw(&ml0,&layer0);
+	  mlAdvance(&ml0, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 1){
+	  movLayerDraw(&ml0,&layer0);
+	  mlAdvance(&ml0, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 2){
+	  movLayerDraw(&ml1,&layer1);
+	  mlAdvance(&ml1, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 3){
+	  movLayerDraw(&ml1,&layer1);
+	  mlAdvance(&ml1, &fieldFence);
+	  redrawScreen = 1;
+	}
+      }
     }
-
+    
+    str[4] = 0;
+    drawString5x7(20,20, str, COLOR_GREEN, COLOR_BLUE); 
+  
     count = 0;
   } 
   P1OUT &= ~GREEN_LED;		    /**< Green LED off when cpu off */
 }
+
