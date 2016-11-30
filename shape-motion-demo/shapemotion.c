@@ -10,13 +10,16 @@
 
 #define GREEN_LED BIT6
 
+
 char p1Stats[6] = "P1:0";
 char p2Stats[6] = "P2:0";
 u_int scoreAt = 3;
 char p1Score = 0;
 char p2Score = 0;
+char playGame = 0;
+char gameOver = 0;
 
-u_int bgColor = COLOR_YELLOW;     /**< The background color */
+u_int bgColor = COLOR_BLACK;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
 Region fieldFence;		/**< fence around playing field  */
 Region fencePaddle1;
@@ -36,7 +39,7 @@ Layer fieldLayer = {
   (AbShape *) &fieldOutline,
   {screenWidth/2, screenHeight/2},/**< center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_BLACK,
+  COLOR_YELLOW,
   0,
 };
 
@@ -44,9 +47,9 @@ Layer fieldLayer = {
 
 Layer layer2 = {		
   (AbShape *)&circle4,
-  {(screenWidth/2)+10, (screenHeight/2)+5}, /**< bit below & right of center */
+  {(screenWidth/2), (screenHeight/2)}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
-  COLOR_PURPLE,
+  COLOR_BLACK,
   &fieldLayer,
 };
 
@@ -141,6 +144,9 @@ void mlAdvance(MovLayer *ml, Region *fence)
   } /**< for ml */
 }
 
+void printScore(char *scoreBoard, char width){
+    drawString5x7(width,3, scoreBoard, COLOR_BLACK, COLOR_YELLOW);
+}
 
 void resetPositions(MovLayer *ml, MovLayer *p1, MovLayer *p2){
   Vec2 newPos;
@@ -215,10 +221,6 @@ char game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fen
   return 0;
 }
 
-void printScore(char *scoreBoard, char width){
-    drawString5x7(width,3, scoreBoard, COLOR_BLACK, COLOR_GREEN);
-}
-
 
 /** Initializes everything, enables interrupts and green LED, 
  *  and handles the rendering for the screen
@@ -244,9 +246,6 @@ void main()
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
   
-  drawString5x7(50,3, "Score", COLOR_BLACK, COLOR_GREEN);
-  printScore(p1Stats, 1); // Draws score player 1 
-  printScore(p2Stats, 104); // Draws score player 2
   
   for(;;) {    
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -274,8 +273,47 @@ void wdt_c_handler()
   
   P1OUT |= GREEN_LED;	      
 
-  song(sound);
   
+  //playGame = 1;
+  while(!playGame){
+    //bgColor = COLOR_BLACK;
+    drawString5x7(screenWidth/2-30,20, "PAD MANIA", COLOR_GOLD, COLOR_BLACK);
+    drawString5x7(10,50, "S1: Player 1 UP", COLOR_WHITE, COLOR_BLACK);
+    drawString5x7(10,65, "S2: Player 1 DOWN", COLOR_GREEN, COLOR_BLACK);
+    drawString5x7(10,80, "S3: Player 2 UP", COLOR_RED, COLOR_BLACK);
+    drawString5x7(10,95, "S4: Player 2 DOWN", COLOR_ORANGE, COLOR_BLACK);
+    drawString5x7(10,115, "  ~Press to play!", COLOR_HOT_PINK, COLOR_BLACK);
+    if(++wait == 100){
+      wait = 0;
+      playGame = 1;
+      bgColor = COLOR_YELLOW; // Change of screen Color
+
+      /* Initializes Everything Again */
+      configureClocks();
+      lcd_init();
+      shapeInit();
+      p2sw_init(15);
+      shapeInit();      
+      buzzer_init(); //added buzzer_init() to program
+      layerInit(&layer0);
+      layerDraw(&layer0);
+      layerGetBounds(&fieldLayer, &fieldFence);
+      enableWDTInterrupts();      /**< enable periodic interrupt */
+      or_sr(0x8);	              /**< GIE (enable interrupts) */
+      
+      drawString5x7(50,3, "Score", COLOR_BLACK, COLOR_YELLOW);
+      printScore(p1Stats, 1); // Draws score player 1
+      printScore(p2Stats, 104); // Draws score player 2
+    }
+
+    
+  }
+
+  
+  //bgColor = COLOR_PINK;
+
+  if(!gameOver)
+    song(sound);
   if(++sound > 225) 
     sound = 0; 
   if (count++ == 15) {
@@ -295,15 +333,43 @@ void wdt_c_handler()
       movLayerDraw(&mlball,&layer2); // Repaints ball to inital position
       movLayerDraw(&ml0,&layer0);    // Repaints paddle 1 to inital position
       movLayerDraw(&ml1,&layer1);    // Repaints paddle 2 to inital position
-      drawChar5x7(screenWidth/2,50, '3', COLOR_BLACK, COLOR_GREEN);  // Starts countdown
+      drawChar5x7(screenWidth/2,50, '3', COLOR_BLACK, COLOR_YELLOW);  // Starts countdown
       while(++wait < 1000000){}
-      drawChar5x7(screenWidth/2,50, '2', COLOR_BLACK, COLOR_GREEN);
+      drawChar5x7(screenWidth/2,50, '2', COLOR_BLACK, COLOR_YELLOW);
       while(++wait < 2000000){}
-      drawChar5x7(screenWidth/2,50, '1', COLOR_BLACK, COLOR_GREEN);
+      drawChar5x7(screenWidth/2,50, '1', COLOR_BLACK, COLOR_YELLOW);
       while(++wait < 3000000){}
       drawChar5x7(screenWidth/2,50, '1', COLOR_YELLOW, COLOR_YELLOW);  // Clears countdown
       point = 0;
       wait = 0;
+    }
+
+    if(p1Score == 7 || p2Score == 7){
+      gameOver = 1;
+      char *winner;
+      (p1Score == 7)?(winner = "Player 1!!!"):(winner = "Player 2!!!");
+      bgColor = COLOR_GOLD;
+      
+      /* Initializes Everything Again */
+      configureClocks();
+      lcd_init();
+      shapeInit();
+      p2sw_init(15);
+      shapeInit();      
+      buzzer_init(); //added buzzer_init() to program
+      layerInit(&layer0);
+      layerDraw(&layer0);
+      layerGetBounds(&fieldLayer, &fieldFence);
+      enableWDTInterrupts();      /**< enable periodic interrupt */
+      or_sr(0x8);	              /**< GIE (enable interrupts) */
+      buzzer_set_note(30000);
+      
+      drawString5x7(screenWidth/2-30,20, "PAD MANIA", COLOR_BLUE, COLOR_GOLD);
+      drawString5x7(screenWidth/2-30,50, "GAME OVER!", COLOR_RED, COLOR_GOLD);
+      drawString5x7(screenWidth/2-30,100, "WINNER:", COLOR_BLACK, COLOR_GOLD);
+      drawString5x7(screenWidth/2-30,115, winner, COLOR_BLACK, COLOR_GOLD);
+      
+      while(1){}
     }
     
     // SWITCHES //
