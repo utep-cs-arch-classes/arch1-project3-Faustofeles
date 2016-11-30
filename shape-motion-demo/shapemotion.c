@@ -1,4 +1,6 @@
 #include <msp430.h>
+//#include <stdlib.h>
+//#include <stdio.h>
 #include <libTimer.h>
 #include <lcdutils.h>
 #include <lcddraw.h>
@@ -10,8 +12,8 @@
 
 #define GREEN_LED BIT6
 
-void mlAdvance();
-void movLayerDraw();
+
+int test = 0;
 
 u_int bgColor = COLOR_GREEN;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
@@ -21,7 +23,7 @@ AbRect paddle = {abRectGetBounds, abRectCheck, {3,15}};   /**< 3x15 paddles*/
 
 AbRectOutline fieldOutline = {	                      /* playing field */
   abRectOutlineGetBounds, abRectOutlineCheck,   
-  {screenWidth/2 - 15, screenHeight/2 - 15}
+  {screenWidth/2 - 5, screenHeight/2 - 5}
 };
 
 /* playing field as a layer */
@@ -48,7 +50,7 @@ Layer layer2 = {
 
 Layer layer1 = {	       
   (AbShape *)&paddle,
-  {118, (screenHeight)/2}, /**< center */
+  {118, screenHeight/2}, /**< center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_BLACK,
   &layer2,
@@ -58,7 +60,7 @@ Layer layer1 = {
 
 Layer layer0 = {		
   (AbShape *)&paddle,
-  {10, (screenHeight)/2}, /**< bit below & right of center */
+  {10, screenHeight/2}, /**< bit below & right of center */
   {0,0}, {0,0},				    /* last & next pos */
   COLOR_BLACK,
   &layer1,
@@ -70,7 +72,7 @@ typedef struct MovLayer_s {
   struct MovLayer_s *next;
 } MovLayer;
 
-MovLayer mlball = { &layer2, {3,3}, 0};
+MovLayer mlball = { &layer2, {2,2}, 0};
 MovLayer ml1 = { &layer1, {0,3}, 0};  /**< not all layers move */
 MovLayer ml0 = { &layer0, {0,3}, 0}; 
 
@@ -136,12 +138,9 @@ void mlAdvance(MovLayer *ml, Region *fence)
     for (axis = 0; axis < 2; axis ++) {
 
       /*
-	Reynaldo: If new shape boudaries hits fence boudaries, change direction of
-	the velocity (a.k.a. change sign).
-
 	shapeBoundary <- new region (boundary) of the shape. Uses top left and bottom right points
       */
-   
+    
       if ((shapeBoundary.topLeft.axes[axis] < fence->topLeft.axes[axis]) ||
 	  (shapeBoundary.botRight.axes[axis] > fence->botRight.axes[axis]) ) {
 	int velocity = ml->velocity.axes[axis] = -ml->velocity.axes[axis];
@@ -150,6 +149,41 @@ void mlAdvance(MovLayer *ml, Region *fence)
       ml->layer->posNext = newPos; // <---- HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
   } /**< for ml */ 
 }
+
+void mlAdvanceForBall(MovLayer *ml, Region *fenceP1, Region *fenceP2, Region *fence)
+{
+
+  Vec2 newPos;
+  u_char axis;
+  Region shapeBoundary;
+
+  vec2Add(&newPos, &ml->layer->posNext, &ml->velocity); // Gets new position (adds position vec to vel vec)
+  abShapeGetBounds(ml->layer->abShape, &newPos, &shapeBoundary); // Uses new position to set new boundaries
+  //for (axis = 0; axis < 2; axis ++) {
+  if (((shapeBoundary.topLeft.axes[0] <= fenceP1->botRight.axes[0]) &&
+       (shapeBoundary.topLeft.axes[1] > fenceP1->topLeft.axes[1]) &&
+       (shapeBoundary.topLeft.axes[1] < fenceP1->botRight.axes[1]))||
+      ((shapeBoundary.botRight.axes[0] >= fenceP2->topLeft.axes[0]) &&
+       (shapeBoundary.botRight.axes[1] > fenceP2->topLeft.axes[1]) &&
+       (shapeBoundary.botRight.axes[1] < fenceP2->botRight.axes[1]))) {
+    int velocity = ml->velocity.axes[0] = -ml->velocity.axes[0];
+    newPos.axes[0] += (1*velocity); 
+      }	/**< if outside of fence */
+
+  if((shapeBoundary.topLeft.axes[1] <= fence->topLeft.axes[1]) ||
+     (shapeBoundary.botRight.axes[1] >= fence->botRight.axes[1])){
+    int velocity = ml->velocity.axes[1] = -ml->velocity.axes[1];
+    newPos.axes[1] += (1*velocity); 
+  }
+
+  ml->layer->posNext = newPos; // <---- HERE IS WHERE WE UPDATE POSNEXT IN SHAPE
+}
+
+
+//Regions for the paddles
+Region fencePaddle1;
+Region fencePaddle2;
+
 
 
 /** Initializes everything, enables interrupts and green LED, 
@@ -172,6 +206,7 @@ void main()
   layerDraw(&layer0);
   layerGetBounds(&fieldLayer, &fieldFence);
 
+  
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
@@ -214,9 +249,16 @@ void wdt_c_handler()
     sound = 0; 
   
   if (count == 15) {
+    layerGetBounds(&layer0, &fencePaddle1);
+    layerGetBounds(&layer1, &fencePaddle2);
     movLayerDraw(&mlball,&layer2);
-    mlAdvance(&mlball, &fieldFence);
+    mlAdvanceForBall(&mlball, &fencePaddle1, &fencePaddle2, &fieldFence);
+    //mlAdvance(&mlball, &fieldFence);      
+    //mlAdvance(&mlball, &fencePaddle1);
+    //mlAdvance(&mlball, &fieldPaddle2);
 
+
+    
     // SWITCHES //
     u_int switches = p2sw_read(), i;
     char str[5];
@@ -225,7 +267,7 @@ void wdt_c_handler()
 	str[i] = '-';
       else{
 	str[i] = '0'+i;
-	if(i == 0){
+	if(i == 0){ 
 	  ml0.velocity.axes[1] = -4;
 	  movLayerDraw(&ml0,&layer0);
 	  mlAdvance(&ml0, &fieldFence);

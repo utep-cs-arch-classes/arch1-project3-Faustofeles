@@ -19,7 +19,7 @@ main()
 
   clearScreen(COLOR_BLUE);
 
-  drawString5x7(10, 10, "switch:", COLOR_GREEN, COLOR_BLUE);
+  drawString5x7((screenWidth/2), 10, "switch:", COLOR_GREEN, COLOR_BLUE);
   while (1) {
     u_int switches = p2sw_read(), i;
     char str[5];
