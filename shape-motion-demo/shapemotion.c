@@ -10,12 +10,14 @@
 
 #define GREEN_LED BIT6
 
-short score[2]; // score[0] for player 1, and score[1] for player 2
-u_int reset = 0;
+char p1Stats[6] = "P1:0";
+char p2Stats[6] = "P2:0";
+u_int scoreAt = 3;
+char p1Score = 0;
+char p2Score = 0;
 
 u_int bgColor = COLOR_YELLOW;     /**< The background color */
 int redrawScreen = 1;           /**< Boolean for whether screen needs to be redrawn */
-
 Region fieldFence;		/**< fence around playing field  */
 Region fencePaddle1;
 Region fencePaddle2;
@@ -151,13 +153,28 @@ void resetPositions(MovLayer *ml, MovLayer *p1, MovLayer *p2){
   p2->layer->posNext = newPos;
 }
 
+
+void updateScore(int player){ 
+  if(player == 0){
+    p1Score++;
+    p1Stats[scoreAt] = '0'+p1Score;
+    printScore(p1Stats, 1); // Draws score player 1
+  }
+  else{
+    p2Score++;
+    p2Stats[scoreAt] = '0'+p2Score;
+    printScore(p2Stats, 104); // Draws score player 2
+  }
+}
+
+
 /** Advances a moving shape within a set of boundaries
  *  
  *  \param ml The moving shape to be advanced
  *  \param fenceP1 the region that contains paddle 1
  *  \param fenceP2 the region that contains paddle 2
  */
-u_int game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fenceP2, Region *fence)
+char game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fenceP2, Region *fence)
 {
   Vec2 newPos;
   u_char axis;
@@ -185,10 +202,12 @@ u_int game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fe
 
   /* Manages collisions between ball and  vertical walls */
   if(shapeBoundary.topLeft.axes[0] < fence->topLeft.axes[0]){
+    updateScore(1);
     return 1;
   }
 
   if(shapeBoundary.botRight.axes[0] > fence->botRight.axes[0]){
+    updateScore(0);
     return 1;
   }
 
@@ -196,13 +215,8 @@ u_int game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fe
   return 0;
 }
 
-
-
-void updateScore(short score[]){
-  /* drawString5x7(1,3, "P1:", COLOR_BLACK, COLOR_GREEN); */
-  /* drawChar5x7(19,3, score, COLOR_BLACK, COLOR_GREEN); */
-  /* drawString5x7(100,3, "P2:", COLOR_BLACK, COLOR_PINK); */
-  /* drawChar5x7(121,3, score, COLOR_BLACK, COLOR_PINK); */
+void printScore(char *scoreBoard, char width){
+    drawString5x7(width,3, scoreBoard, COLOR_BLACK, COLOR_GREEN);
 }
 
 
@@ -229,10 +243,10 @@ void main()
   
   enableWDTInterrupts();      /**< enable periodic interrupt */
   or_sr(0x8);	              /**< GIE (enable interrupts) */
-
+  
   drawString5x7(50,3, "Score", COLOR_BLACK, COLOR_GREEN);
-  scoreP1('0');
-  scoreP2('0');
+  printScore(p1Stats, 1); // Draws score player 1 
+  printScore(p2Stats, 104); // Draws score player 2
   
   for(;;) {    
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -249,75 +263,81 @@ void main()
 /** Watchdog timer interrupt handler. 15 interrupts/sec */
 void wdt_c_handler()
 {
+  /* static short score[2]; // score[0] for player 1, and score[1] for player 2 */
+  /* score[0] = 0; score[1] = 0; // Both players start with score of 0 */
+
   static short count = 0;
   static short sound = 0;
-  static u_int point = 0;
-  static long ya = 0;
+  static char point = 0;
+  static long wait = 0;
+  u_char width = 60;
+  
   P1OUT |= GREEN_LED;	      
 
-  //song(sound);
-
-    if(++sound > 225) 
-      sound = 0; 
-    if (count++ == 15) {
-      
-      /* Update paddle region for collisions */
-      layerGetBounds(&layer0, &fencePaddle1);
-      layerGetBounds(&layer1, &fencePaddle2);
-      
-      movLayerDraw(&mlball,&layer2); // Move ball around
-      
-	point = game(&mlball, &ml0, &ml1 ,&fencePaddle1, &fencePaddle2, &fieldFence);
-
-	if(point){
-	  resetPositions(&mlball, &ml0, &ml1);
-	  movLayerDraw(&mlball,&layer2); // Move ball around
-	  movLayerDraw(&ml0,&layer0);
-	  movLayerDraw(&ml1,&layer1);
-	  drawChar5x7(screenWidth/2,50, '3', COLOR_BLACK, COLOR_GREEN);
-	  while(++ya < 1000000){}
-	  drawChar5x7(screenWidth/2,50, '2', COLOR_BLACK, COLOR_GREEN);
-	  while(++ya < 2000000){}
-	  drawChar5x7(screenWidth/2,50, '1', COLOR_BLACK, COLOR_GREEN);
-	  while(++ya < 3000000){}
-	  drawChar5x7(screenWidth/2,50, '1', COLOR_YELLOW, COLOR_YELLOW);
-	  point = 0;
-	  ya = 0;
-	}
-	
-	// SWITCHES //
-	u_int switches = p2sw_read(), i;
-	for (i = 0; i < 4; i++){
-	  if(!(switches & (1<<i))){	
-	    if(i == 0){ 
-	    ml0.velocity.axes[1] = -4;
-	    movLayerDraw(&ml0,&layer0);
-	    mlAdvance(&ml0, &fieldFence);
-	    redrawScreen = 1;
-	    }
-	    if(i == 1){
-	      ml0.velocity.axes[1] = 4;
-	      movLayerDraw(&ml0,&layer0);
-	      mlAdvance(&ml0, &fieldFence);
-	      redrawScreen = 1;
-	    }
-	    if(i == 2){
-	      ml1.velocity.axes[1] = -4;
-	      movLayerDraw(&ml1,&layer1);
-	      mlAdvance(&ml1, &fieldFence);
-	      redrawScreen = 1;
-	    }
-	  if(i == 3){
-	    ml1.velocity.axes[1] = 4;
-	    movLayerDraw(&ml1,&layer1);
-	    mlAdvance(&ml1, &fieldFence);
-	    redrawScreen = 1;
-	  }
-	}
-	count = 0;
-      } 
-      P1OUT &= ~GREEN_LED;    /**< Green LED off when cpu off */
+  song(sound);
+  
+  if(++sound > 225) 
+    sound = 0; 
+  if (count++ == 15) {
     
+    /* Update paddle region for collisions */
+    layerGetBounds(&layer0, &fencePaddle1);
+    layerGetBounds(&layer1, &fencePaddle2);
+    
+    movLayerDraw(&mlball,&layer2); // Move ball around
+    
+    point = game(&mlball, &ml0, &ml1 ,&fencePaddle1, &fencePaddle2, &fieldFence);
+    
+    /* Manages wait time between scored points */
+    if(point){
+      
+      resetPositions(&mlball, &ml0, &ml1);
+      movLayerDraw(&mlball,&layer2); // Repaints ball to inital position
+      movLayerDraw(&ml0,&layer0);    // Repaints paddle 1 to inital position
+      movLayerDraw(&ml1,&layer1);    // Repaints paddle 2 to inital position
+      drawChar5x7(screenWidth/2,50, '3', COLOR_BLACK, COLOR_GREEN);  // Starts countdown
+      while(++wait < 1000000){}
+      drawChar5x7(screenWidth/2,50, '2', COLOR_BLACK, COLOR_GREEN);
+      while(++wait < 2000000){}
+      drawChar5x7(screenWidth/2,50, '1', COLOR_BLACK, COLOR_GREEN);
+      while(++wait < 3000000){}
+      drawChar5x7(screenWidth/2,50, '1', COLOR_YELLOW, COLOR_YELLOW);  // Clears countdown
+      point = 0;
+      wait = 0;
+    }
+    
+    // SWITCHES //
+    u_int switches = p2sw_read(), i;
+    for (i = 0; i < 4; i++){
+      if(!(switches & (1<<i))){	
+	if(i == 0){ 
+	  ml0.velocity.axes[1] = -4;
+	  movLayerDraw(&ml0,&layer0);
+	  mlAdvance(&ml0, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 1){
+	  ml0.velocity.axes[1] = 4;
+	  movLayerDraw(&ml0,&layer0);
+	  mlAdvance(&ml0, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 2){
+	  ml1.velocity.axes[1] = -4;
+	  movLayerDraw(&ml1,&layer1);
+	  mlAdvance(&ml1, &fieldFence);
+	  redrawScreen = 1;
+	}
+	if(i == 3){
+	  ml1.velocity.axes[1] = 4;
+	  movLayerDraw(&ml1,&layer1);
+	  mlAdvance(&ml1, &fieldFence);
+	  redrawScreen = 1;
+	}
+      }
+      count = 0;
+    } 
+    P1OUT &= ~GREEN_LED;    /**< Green LED off when cpu off */    
   }
 }
 
