@@ -141,18 +141,14 @@ void mlAdvance(MovLayer *ml, Region *fence)
 
 
 void resetPositions(MovLayer *ml, MovLayer *p1, MovLayer *p2){
-  u_int count = 0;
   Vec2 newPos;
   newPos.axes[0] = screenWidth/2;
   newPos.axes[1] = screenHeight/2;
-  while(++count <10000){}
   ml->layer->posNext = newPos;
   newPos.axes[0] = 10;
   p1->layer->posNext = newPos;
   newPos.axes[0] = 118;
   p2->layer->posNext = newPos;
-  reset = 1;
-  
 }
 
 /** Advances a moving shape within a set of boundaries
@@ -161,7 +157,7 @@ void resetPositions(MovLayer *ml, MovLayer *p1, MovLayer *p2){
  *  \param fenceP1 the region that contains paddle 1
  *  \param fenceP2 the region that contains paddle 2
  */
-void game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fenceP2, Region *fence)
+u_int game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fenceP2, Region *fence)
 {
   Vec2 newPos;
   u_char axis;
@@ -187,17 +183,17 @@ void game(MovLayer *ml, MovLayer *p1, MovLayer *p2, Region *fenceP1, Region *fen
     newPos.axes[1] += (1*velocity); 
   }
 
-  ml->layer->posNext = newPos; // UPDATE POSNEXT
-  
   /* Manages collisions between ball and  vertical walls */
   if(shapeBoundary.topLeft.axes[0] < fence->topLeft.axes[0]){
-    resetPositions(ml, p1, p2);
+    return 1;
   }
 
   if(shapeBoundary.botRight.axes[0] > fence->botRight.axes[0]){
-    resetPositions(ml, p1, p2);
-   
+    return 1;
   }
+
+  ml->layer->posNext = newPos; // UPDATE POSNEXT
+  return 0;
 }
 
 
@@ -235,8 +231,8 @@ void main()
   or_sr(0x8);	              /**< GIE (enable interrupts) */
 
   drawString5x7(50,3, "Score", COLOR_BLACK, COLOR_GREEN);
-  //scoreP1((char)score);
-  //scoreP2((char)score);
+  scoreP1('0');
+  scoreP2('0');
   
   for(;;) {    
     while (!redrawScreen) { /**< Pause CPU if screen doesn't need updating */
@@ -255,13 +251,11 @@ void wdt_c_handler()
 {
   static short count = 0;
   static short sound = 0;
+  static u_int point = 0;
+  static long ya = 0;
   P1OUT |= GREEN_LED;	      
 
   //song(sound);
-  while(reset){
-    if(count++ == 300)
-      reset =0;
-  }
 
     if(++sound > 225) 
       sound = 0; 
@@ -272,11 +266,24 @@ void wdt_c_handler()
       layerGetBounds(&layer1, &fencePaddle2);
       
       movLayerDraw(&mlball,&layer2); // Move ball around
-      movLayerDraw(&ml0,&layer0);
-      movLayerDraw(&ml1,&layer1);
       
-      while(!reset){
-	game(&mlball, &ml0, &ml1 ,&fencePaddle1, &fencePaddle2, &fieldFence);
+	point = game(&mlball, &ml0, &ml1 ,&fencePaddle1, &fencePaddle2, &fieldFence);
+
+	if(point){
+	  resetPositions(&mlball, &ml0, &ml1);
+	  movLayerDraw(&mlball,&layer2); // Move ball around
+	  movLayerDraw(&ml0,&layer0);
+	  movLayerDraw(&ml1,&layer1);
+	  drawChar5x7(screenWidth/2,50, '3', COLOR_BLACK, COLOR_GREEN);
+	  while(++ya < 1000000){}
+	  drawChar5x7(screenWidth/2,50, '2', COLOR_BLACK, COLOR_GREEN);
+	  while(++ya < 2000000){}
+	  drawChar5x7(screenWidth/2,50, '1', COLOR_BLACK, COLOR_GREEN);
+	  while(++ya < 3000000){}
+	  drawChar5x7(screenWidth/2,50, '1', COLOR_YELLOW, COLOR_YELLOW);
+	  point = 0;
+	  ya = 0;
+	}
 	
 	// SWITCHES //
 	u_int switches = p2sw_read(), i;
@@ -310,7 +317,7 @@ void wdt_c_handler()
 	count = 0;
       } 
       P1OUT &= ~GREEN_LED;    /**< Green LED off when cpu off */
-    }
+    
   }
 }
 
