@@ -279,6 +279,7 @@ void wdt_c_handler()
   static short sound = 0;
   static char point = 0;
   static long wait = 0;
+  static char increment = 0; 
   u_char width = 60;
   
   P1OUT |= GREEN_LED;	      
@@ -339,6 +340,19 @@ void wdt_c_handler()
       drawChar5x7(screenWidth/2,50, '1', COLOR_YELLOW, COLOR_YELLOW); // Clears countdown
       point = 0; // Reset point offset
       wait = 0; // Reset wait
+
+      /* increase the velocity of the ball by 1 */
+      char m = mlball.velocity.axes[0];
+      char n = ml0.velocity.axes[1];
+      if(++increment%4 == 0){                  // Every 4 points scored
+	mlball.velocity.axes[0] = (m*m)/m + 1; // Deals with negative velocities,
+	mlball.velocity.axes[1] = (m*m)/m + 1; // increases the magnitude of ball
+	                                       // by one.
+	
+	ml0.velocity.axes[1] = (n*n)/n + 1; // Deals with negative velocities,
+	ml1.velocity.axes[1] = (n*n)/n + 1; // increases the magnitude of the 
+	                                    // paddles by one.
+      }
     }
 
     /* Finishes game if a player reaches a score of 7 */
